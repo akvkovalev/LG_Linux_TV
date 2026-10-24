@@ -17,6 +17,11 @@ Vendor GDMA нельзя безопасно инициализировать о�
 `initcall_blacklist`; после стабилизации PID 1 модуль `gdma-trigger.ko` вызывает
 экспортированный `GDMA_init_module()`, затем загружается `rtk_venusfb.ko`.
 
+После регистрации framebuffer утилита `set-lg-fb-mode` переключает его на
+1920×1080×16. Это даёт целочисленное масштабирование 2× на панели 3840×2160 и
+устраняет полосы, возникавшие при растяжении 720×480. Модуль `gdma-show.ko`
+повторно включает mixer и OSD1 после смены режима.
+
 Xorg fbdev требует sysfs-ссылку `fb0/device/subsystem`, которой у виртуального
 vendor framebuffer нет. `start-lg-desktop` создаёт временное представление через
 bind mount. Драйвер также нормализует `fb_var_screeninfo.sync`; небольшой

@@ -1,6 +1,6 @@
 # Ограничения и диагностика
 
-- Framebuffer сейчас 720×480×16; вывод программный.
+- Framebuffer работает в режиме 1920×1080×16; вывод программный.
 - Нативный input driver пульта ещё не подключён. Xorg стартует без клавиатуры и
   мыши; управление пока выполняется по SSH/serial.
 - HDMI RX, аппаратное видео и звук проверялись отдельно в webOS окружении. В
@@ -22,7 +22,8 @@ cat /run/log/sshd.log
 Если есть SSH, но нет изображения:
 
 ```sh
-lsmod | grep -E 'gdma_trigger|rtk_venusfb'
+lsmod | grep -E 'gdma_trigger|gdma_show|rtk_venusfb'
 cat /proc/fb
 ls -l /dev/fb0 /tmp/.X11-unix/X0
+/usr/local/sbin/set-lg-fb-mode
 ```

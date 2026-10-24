@@ -31,12 +31,16 @@ install -D -m 0600 "$AUTHORIZED_KEY" "$root/root/.ssh/authorized_keys"
 install -D -m 0644 "$repo_dir/rootfs/sshd_config.lg-tv" "$root/etc/ssh/sshd_config.lg-tv"
 cp -a "$repo_dir/rootfs/overlay/." "$root/"
 install -D -m 0644 "$dist_dir/gdma-trigger.ko" "$root/opt/lg-linux-tv/modules/gdma-trigger.ko"
+install -D -m 0644 "$dist_dir/gdma-show.ko" "$root/opt/lg-linux-tv/modules/gdma-show.ko"
 install -D -m 0644 "$dist_dir/rtk_venusfb.ko" "$root/opt/lg-linux-tv/modules/rtk_venusfb.ko"
 install -D -m 0644 "$repo_dir/rootfs/fix-fb-ioctl.c" "$root/tmp/fix-fb-ioctl.c"
+install -D -m 0644 "$repo_dir/rootfs/set-lg-fb-mode.c" "$root/tmp/set-lg-fb-mode.c"
 
 chroot "$root" /usr/bin/cc -shared -fPIC -O2 -ldl \
     /tmp/fix-fb-ioctl.c -o /usr/local/lib/libfixfbioctl.so
-rm -f "$root/tmp/fix-fb-ioctl.c"
+chroot "$root" /usr/bin/cc -O2 -Wall \
+    /tmp/set-lg-fb-mode.c -o /usr/local/sbin/set-lg-fb-mode
+rm -f "$root/tmp/fix-fb-ioctl.c" "$root/tmp/set-lg-fb-mode.c"
 chroot "$root" /sbin/apk del build-base linux-headers
 
 python3 - "$repo_dir/rootfs/full-init.in" "$root/init-alpine" <<'PY'

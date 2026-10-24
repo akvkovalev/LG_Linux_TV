@@ -12,7 +12,7 @@ LG 43UN71006LB через `kexec`. Ядро, initramfs и полный rootfs р
 - исходники LG `kernel-1.0.0-612.21`, Linux 4.4.84;
 - Alpine 3.22.6 `armv7`;
 - Ethernet, статический адрес;
-- GDMA + `venusfb`, framebuffer 720×480×16;
+- GDMA + `venusfb`, framebuffer 1920×1080×16;
 - Xorg fbdev, Openbox и xterm;
 - SSH по ключу на порту 2222.
 
@@ -48,6 +48,7 @@ $EDITOR .env
 ./scripts/apply-kernel-patch.sh
 ./scripts/build-kernel.sh
 ./scripts/build-gdma-trigger.sh
+./scripts/build-gdma-show.sh
 ./scripts/build-stage1.sh
 ./scripts/build-loader-initramfs.sh
 ./scripts/build-kexec.sh

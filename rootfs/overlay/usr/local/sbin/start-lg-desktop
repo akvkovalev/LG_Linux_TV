@@ -22,7 +22,7 @@ if [ ! -S /tmp/.X11-unix/X0 ]; then
 fi
 DISPLAY=:0 openbox > /run/lg-desktop/openbox.log 2>&1 &
 sleep 1
-DISPLAY=:0 xterm -title "Alpine Linux on LG TV" -geometry 72x20+18+18 \
+DISPLAY=:0 xterm -title "Alpine Linux on LG TV" -geometry 170x40+18+18 \
     -fa "DejaVu Sans Mono" -fs 13 -bg '#07131f' -fg '#65f4b0' \
     -e /bin/sh -lc 'clear; echo "ALPINE LINUX ON LG TV"; echo; uname -a; echo; echo "GDMA and venusfb are active."; echo "Xorg/Openbox desktop is running."; echo; exec /bin/sh' \
     > /run/lg-desktop/xterm.log 2>&1 &

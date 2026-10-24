@@ -9,11 +9,16 @@ if ! grep -q '^rtk_venusfb ' /proc/modules; then
     insmod /opt/lg-linux-tv/modules/rtk_venusfb.ko
 fi
 sleep 1
+/usr/local/sbin/set-lg-fb-mode
+if ! grep -q '^gdma_show ' /proc/modules; then
+    insmod /opt/lg-linux-tv/modules/gdma-show.ko
+fi
+sleep 1
 
 chvt 1 2>/dev/null || true
 {
     printf '\033[2J\033[H\033[1;32mALPINE LINUX ON LG TV\033[0m\n\n'
     printf 'Native kernel: '; uname -r
     printf 'Framebuffer: '; cat /sys/class/graphics/fb0/virtual_size 2>/dev/null || printf 'unknown\n'
-    printf 'GDMA and venusfb are active.\n'
+    printf 'GDMA and venusfb are active at 1920x1080.\n'
 } > /dev/tty1

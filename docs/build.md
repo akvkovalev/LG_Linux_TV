@@ -35,7 +35,8 @@ sudo apt install build-essential bc bison flex libssl-dev libelf-dev \
 - исправления перехода в userspace.
 
 `configs/rtd288o-tested.config` — полный проверенный config. После `olddefconfig`
-строятся `Image`, `zImage`, `rtk_venusfb.ko` и `gdma-trigger.ko`.
+строятся `Image`, `zImage`, `rtk_venusfb.ko`, `gdma-trigger.ko` и
+`gdma-show.ko`.
 
 ## Два rootfs
 
@@ -47,14 +48,17 @@ Loader скачивает полный rootfs по `ROOTFS_URL` в tmpfs 256 MiB
 в `/newroot`, удаляет архив и выполняет `chroot /newroot /init-alpine`.
 
 Полный rootfs собирается через ARM binfmt/QEMU. Скрипт устанавливает Xorg fbdev,
-Openbox, xterm и OpenSSH, компилирует musl `LD_PRELOAD` shim и добавляет только
-публичный SSH-ключ. Host key создаётся при каждой RAM-загрузке.
+Openbox, xterm и OpenSSH, компилирует musl `LD_PRELOAD` shim и утилиту настройки
+framebuffer 1920×1080, затем добавляет только публичный SSH-ключ. Модуль
+`gdma-show` включает OSD1 после смены режима. Host key создаётся при каждой
+RAM-загрузке.
 
 ## Выходные файлы
 
 ```text
 dist/alpine-full-armv7.tar.gz
 dist/gdma-trigger.ko
+dist/gdma-show.ko
 dist/rtk_venusfb.ko
 dist/boot/uImage-rtd288o
 dist/boot/rtd288o.dtb
