@@ -1,0 +1,53 @@
+#!/bin/sh
+set -u
+
+runtime=/run/lg-desktop
+mkdir -p "$runtime" /run/fakesys/fb0/device /run/fakesys/platform /tmp/.X11-unix
+chmod 1777 /tmp /tmp/.X11-unix
+ln -sfn /run/fakesys/platform /run/fakesys/fb0/device/subsystem
+if ! grep -q '/sys/devices/virtual/graphics/fb0 ' /proc/mounts; then
+    mount --bind /run/fakesys/fb0 /sys/devices/virtual/graphics/fb0
+fi
+
+start_xorg()
+{
+    rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+    LD_PRELOAD=/usr/local/lib/libfixfbioctl.so \
+        Xorg :0 vt1 -config /etc/X11/xorg-lg-tv.conf -nolisten tcp -noreset \
+        -logfile "$runtime/Xorg.0.log" > "$runtime/xorg.stdout" 2>&1 &
+
+    count=0
+    while [ ! -S /tmp/.X11-unix/X0 ] && [ "$count" -lt 20 ]; do
+        sleep 1
+        count=$((count + 1))
+    done
+}
+
+start_openbox()
+{
+    DISPLAY=:0 openbox > "$runtime/openbox.log" 2>&1 &
+}
+
+start_terminal()
+{
+    DISPLAY=:0 xterm -title "Alpine Linux on LG TV" -geometry 128x34+40+40 \
+        -fa "DejaVu Sans Mono" -fs 14 -bg '#07131f' -fg '#65f4b0' \
+        -e /bin/sh -lc 'clear; echo "ALPINE LINUX ON LG TV - 1920x1080"; echo; uname -a; echo; echo "Native GDMA desktop is supervised."; echo; exec /bin/sh' \
+        > "$runtime/xterm.log" 2>&1 &
+}
+
+while :; do
+    if ! pgrep -x Xorg >/dev/null || [ ! -S /tmp/.X11-unix/X0 ]; then
+        pkill -x openbox 2>/dev/null || true
+        pkill -x xterm 2>/dev/null || true
+        pkill -x Xorg 2>/dev/null || true
+        start_xorg
+        sleep 1
+    fi
+
+    if [ -S /tmp/.X11-unix/X0 ]; then
+        pgrep -x openbox >/dev/null || start_openbox
+        pgrep -x xterm >/dev/null || start_terminal
+    fi
+    sleep 3
+done
