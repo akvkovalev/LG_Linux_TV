@@ -1,0 +1,968 @@
+--- a/arch/arm/boot/bootp/init.S
++++ b/arch/arm/boot/bootp/init.S
+@@ -16,7 +16,7 @@
+  *  size immediately following the kernel, we could build this into
+  *  a binary blob, and concatenate the zImage using the cat command.
+  */
+-		.section .start,#alloc,#execinstr
++		.section .start,"ax"
+ 		.type	_start, #function
+ 		.globl	_start
+ 
+--- a/arch/arm/boot/compressed/big-endian.S
++++ b/arch/arm/boot/compressed/big-endian.S
+@@ -5,7 +5,7 @@
+  *  Author: Nicolas Pitre
+  */
+ 
+-	.section ".start", #alloc, #execinstr
++	.section ".start","ax"
+ 
+ 	mrc	p15, 0, r0, c1, c0, 0	@ read control reg
+ 	orr	r0, r0, #(1 << 7)	@ enable big endian mode
+--- a/arch/arm/boot/compressed/head.S
++++ b/arch/arm/boot/compressed/head.S
+@@ -112,7 +112,7 @@
+ #endif
+ 		.endm
+ 
+-		.section ".start", #alloc, #execinstr
++		.section ".start","ax"
+ /*
+  * sort out different calling conventions
+  */
+--- a/arch/arm/boot/compressed/piggy.gzip.S
++++ b/arch/arm/boot/compressed/piggy.gzip.S
+@@ -1,4 +1,4 @@
+-	.section .piggydata,#alloc
++	.section .piggydata,"a"
+ 	.globl	input_data
+ input_data:
+ 	.incbin	"arch/arm/boot/compressed/piggy.gzip"
+--- a/arch/arm/boot/compressed/piggy.lz4.S
++++ b/arch/arm/boot/compressed/piggy.lz4.S
+@@ -1,4 +1,4 @@
+-	.section .piggydata,#alloc
++	.section .piggydata,"a"
+ 	.globl	input_data
+ input_data:
+ 	.incbin	"arch/arm/boot/compressed/piggy.lz4"
+--- a/arch/arm/boot/compressed/piggy.lzma.S
++++ b/arch/arm/boot/compressed/piggy.lzma.S
+@@ -1,4 +1,4 @@
+-	.section .piggydata,#alloc
++	.section .piggydata,"a"
+ 	.globl	input_data
+ input_data:
+ 	.incbin	"arch/arm/boot/compressed/piggy.lzma"
+--- a/arch/arm/boot/compressed/piggy.lzo.S
++++ b/arch/arm/boot/compressed/piggy.lzo.S
+@@ -1,4 +1,4 @@
+-	.section .piggydata,#alloc
++	.section .piggydata,"a"
+ 	.globl	input_data
+ input_data:
+ 	.incbin	"arch/arm/boot/compressed/piggy.lzo"
+--- a/arch/arm/boot/compressed/piggy.xzkern.S
++++ b/arch/arm/boot/compressed/piggy.xzkern.S
+@@ -1,4 +1,4 @@
+-	.section .piggydata,#alloc
++	.section .piggydata,"a"
+ 	.globl	input_data
+ input_data:
+ 	.incbin	"arch/arm/boot/compressed/piggy.xzkern"
+--- a/arch/arm/kernel/head-common.S
++++ b/arch/arm/kernel/head-common.S
+@@ -79,6 +79,13 @@
+  */
+ 	__INIT
+ __mmap_switched:
++	/* CODEX_POST_MMU */
++	movw r3, #0x010c
++	movt r3, #0xfe06
++	movw r6, #0x2150
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
+ 	adr	r3, __mmap_switched_data
+ 
+ 	ldmia	r3!, {r4, r5, r6, r7}
+@@ -104,6 +111,13 @@
+ #ifdef CONFIG_KASAN
+ 	b	kasan_early_init		@ Never return
+ #endif
++	/* CODEX_POST_MMU */
++	movw r3, #0x010c
++	movt r3, #0xfe06
++	movw r6, #0x2160
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
+ 	b	start_kernel
+ ENDPROC(__mmap_switched)
+ 
+--- a/arch/arm/kernel/head.S
++++ b/arch/arm/kernel/head.S
+@@ -78,6 +78,13 @@
+ 
+ 	__HEAD
+ ENTRY(stext)
++	/* CODEX_RETAINED_CRUMB: MMU is off, preserve boot r0/r1/r2. */
++	movw r3, #0x010c
++	movt r3, #0x1806
++	movw r4, #0x2100
++	movt r4, #0xc0de
++	str r4, [r3]
++	dsb sy
+ #if  defined(CONFIG_RTK_ATF_BOOTING)
+ #define MAGIC_TAG1     0x504
+ #define MAGIC_TAG2     0x508
+@@ -130,6 +137,13 @@
+  THUMB( it	eq )		@ force fixup-able long branch encoding
+ 	beq	__error_p			@ yes, error 'p'
+ 
++	/* CODEX_HEAD_STAGES */
++	movw r3, #0x010c
++	movt r3, #0x1806
++	movw r6, #0x2110
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
+ #ifdef CONFIG_ARM_LPAE
+ 	mrc	p15, 0, r3, c0, c1, 4		@ read ID_MMFR0
+ 	and	r3, r3, #0xf			@ extract VMSA support
+@@ -158,7 +172,21 @@
+ #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
+ 	bl	__fixup_pv_table
+ #endif
++	/* CODEX_HEAD_STAGES */
++	movw r3, #0x010c
++	movt r3, #0x1806
++	movw r6, #0x2120
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
+ 	bl	__create_page_tables
++	/* CODEX_HEAD_STAGES */
++	movw r3, #0x010c
++	movt r3, #0x1806
++	movw r6, #0x2130
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
+ 
+ 	/*
+ 	 * The following calls CPU specific code in a position independent
+@@ -191,7 +219,15 @@
+ 	ldr	r12, [r10, #PROCINFO_INITFUNC]
+ 	add	r12, r12, r10
+ 	ret	r12
+-1:	b	__enable_mmu
++1:
++	/* CODEX_HEAD_STAGES */
++	movw r3, #0x010c
++	movt r3, #0x1806
++	movw r6, #0x2140
++	movt r6, #0xc0de
++	str r6, [r3]
++	dsb sy
++	b	__enable_mmu
+ ENDPROC(stext)
+ 	.ltorg
+ #ifndef CONFIG_XIP_KERNEL
+--- a/arch/arm/kernel/reboot.c
++++ b/arch/arm/kernel/reboot.c
+@@ -1,3 +1,7 @@
++#include <linux/io.h>
++/* CODEX_RESET_SOURCE */
++extern int codex_debug_io_ready;
++extern unsigned long codex_fault_pc;
+ /*
+  *  Copyright (C) 1996-2000 Russell King - Converted to ARM.
+  *  Original Copyright (C) 1995  Linus Torvalds
+@@ -137,6 +141,8 @@
+  */
+ void machine_restart(char *cmd)
+ {
++	if (codex_debug_io_ready && !codex_fault_pc && readl((void __iomem *)0xfe06010c) != 0xc0de9000)
++		writel((unsigned long)__builtin_return_address(0), (void __iomem *)0xfe06010c);
+ 	local_irq_disable();
+ 	smp_send_stop();
+ 
+--- a/arch/arm/kernel/setup.c
++++ b/arch/arm/kernel/setup.c
+@@ -1,3 +1,6 @@
++/* CODEX_FATAL_FAULT */
++extern int codex_debug_io_ready;
++#include <linux/io.h>
+ /*
+  *  linux/arch/arm/kernel/setup.c
+  *
+@@ -1023,6 +1026,7 @@
+ #endif
+ 
+ 	setup_processor();
++	writel(0xc0de2180, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 
+ 	// RTK_patch: support atags to dtbs
+ #ifdef CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_EXT
+@@ -1033,6 +1037,7 @@
+ #endif
+ 
+ 	mdesc = setup_machine_fdt(__atags_pointer);
++	writel(0xc0de2190, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 	if (!mdesc)
+ 		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
+ 	machine_desc = mdesc;
+@@ -1055,25 +1060,35 @@
+ 		early_fixmap_init();
+ 
+ 	parse_early_param();
++	writel(0xc0de2194, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 
+ #ifdef CONFIG_MMU
+ 	early_paging_init(mdesc);
++	writel(0xc0de3100, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ #endif
+ 	setup_dma_zone(mdesc);
++	writel(0xc0de3110, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ 	check_ext_mem_size();
++	writel(0xc0de3120, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ 	sanity_check_meminfo();
++	writel(0xc0de3130, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ #ifdef CONFIG_REALTEK_LOGBUF
+         rtdlog_parse_bufsize(cmd_line);
++	writel(0xc0de3140, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ #endif
+ 	arm_memblock_init(mdesc);
++	writel(0xc0de2198, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 
+ 	paging_init(mdesc);
++	codex_debug_io_ready = 1;
++	writel(0xc0de21a0, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 	request_standard_resources(mdesc);
+ 
+ 	if (mdesc->restart)
+ 		arm_pm_restart = mdesc->restart;
+ 
+ 	unflatten_device_tree();
++	writel(0xc0de21a4, (void __iomem *)0xfe06010c); /* CODEX_POST_MMU */
+ 
+ 	arm_dt_init_cpu_maps();
+ 	psci_dt_init();
+--- a/arch/arm/mach-rtd288o/common.c
++++ b/arch/arm/mach-rtd288o/common.c
+@@ -1,3 +1,4 @@
++#include <linux/io.h>
+ /*
+  * This file is subject to the terms and conditions of the GNU General Public
+  * License.  See the file "COPYING" in the main directory of this archive
+@@ -86,6 +87,13 @@
+         return 0;
+ }
+ #endif
++/* CODEX_RTK_RESERVE_STAGES: retain an allocator-error marker once set. */
++static inline void codex_reserve_phase(unsigned long value)
++{
++    unsigned long reserve_word = readl((void __iomem *)0xfe06010c);
++    if ((reserve_word & 0xfffff000) != 0xc0de5000)
++        writel(value, (void __iomem *)0xfe06010c);
++}
+ void __init rtk_reserve(void)
+ {
+         unsigned int addrIdx = (get_platform() - PLATFORM_KXLP);
+@@ -97,6 +105,7 @@
+ 	memblock_reserve(__pa(&_text), PAGE_SIZE);
+ #endif
+ 
++	codex_reserve_phase(0xc0df0000 | ((get_platform() & 0xff) << 8));
+ 	/* for bootcode data */
+ 	memblock_reserve(carvedout_buf[CARVEDOUT_BOOTCODE][addrIdx], carvedout_buf[CARVEDOUT_BOOTCODE][platIdx]);
+ 
+@@ -110,6 +119,7 @@
+ //		ret |= add_ban_info(carvedout_buf[CARVEDOUT_DEMOD][addrIdx], carvedout_buf[CARVEDOUT_DEMOD][platIdx], BAN_NOT_USED);
+ 		memblock_reserve(carvedout_buf[CARVEDOUT_DEMOD][addrIdx], carvedout_buf[CARVEDOUT_DEMOD][platIdx]);
+ 
++	codex_reserve_phase(0xc0de4010);
+ 	/* for rbus & nor flash*/
+ 	memblock_remove(carvedout_buf[CARVEDOUT_MAP_RBUS][addrIdx], carvedout_buf[CARVEDOUT_MAP_RBUS][platIdx]);
+ 
+@@ -124,6 +134,7 @@
+ 	memblock_reserve(carvedout_buf[CARVEDOUT_LOGBUF][addrIdx], carvedout_buf[CARVEDOUT_LOGBUF][platIdx]);
+ #endif
+ 
++	codex_reserve_phase(0xc0de4020);
+ 	/* for rom code */
+ 	memblock_reserve(carvedout_buf[CARVEDOUT_ROMCODE][addrIdx], carvedout_buf[CARVEDOUT_ROMCODE][platIdx]);
+ 
+@@ -131,6 +142,7 @@
+ 	if (carvedout_buf[CARVEDOUT_IB_BOUNDARY][platIdx])
+ 		memblock_reserve(carvedout_buf[CARVEDOUT_IB_BOUNDARY][addrIdx], carvedout_buf[CARVEDOUT_IB_BOUNDARY][platIdx]);
+ 
++	codex_reserve_phase(0xc0de4030);
+ 	/* for audio & video DMEM */
+     if (carvedout_buf[CARVEDOUT_AV_DMEM][platIdx])
+         ret |= add_ban_info(carvedout_buf[CARVEDOUT_AV_DMEM][addrIdx], carvedout_buf[CARVEDOUT_AV_DMEM][platIdx], BAN_NORMAL);
+@@ -167,6 +179,7 @@
+         pr_info("mem_reduce(%lx/%lx)\n", mem_reduce_start, mem_reduce_size);
+     }
+ 
++	codex_reserve_phase(0xc0de4050);
+ 	/* for scaler (memc/mdomain/OD) */
+ 	if (carvedout_buf[CARVEDOUT_SCALER][platIdx])
+ 		ret |= add_ban_info(carvedout_buf[CARVEDOUT_SCALER][addrIdx], carvedout_buf[CARVEDOUT_SCALER][platIdx], BAN_NOT_USED);
+@@ -183,12 +196,14 @@
+ 	if (carvedout_buf[CARVEDOUT_SCALER_VIP][platIdx])
+ 		memblock_reserve(carvedout_buf[CARVEDOUT_SCALER_VIP][addrIdx], carvedout_buf[CARVEDOUT_SCALER_VIP][platIdx]);
+ 
++	codex_reserve_phase(0xc0de4060);
+ 	/* for vt capture */
+     size = carvedout_buf_query(CARVEDOUT_VT, (void *)&addr);
+     if (size) {
+         ret |= add_ban_info(addr, size, BAN_NOT_USED);
+     }
+ 
++	codex_reserve_phase(0xc0de4070);
+ 	/* for ddr boundary */
+ 	if (carvedout_buf[CARVEDOUT_DDR_BOUNDARY][platIdx])
+ 		memblock_reserve(carvedout_buf[CARVEDOUT_DDR_BOUNDARY][addrIdx], carvedout_buf[CARVEDOUT_DDR_BOUNDARY][platIdx]);
+--- a/arch/arm/mm/fault.c
++++ b/arch/arm/mm/fault.c
+@@ -1,3 +1,7 @@
++#include <linux/io.h>
++/* CODEX_FATAL_FAULT */
++extern int codex_debug_io_ready;
++extern unsigned long codex_fault_pc;
+ /*
+  *  linux/arch/arm/mm/fault.c
+  *
+@@ -137,6 +141,10 @@
+ 	 */
+ 	if (fixup_exception(regs))
+ 		return;
++	if (codex_debug_io_ready) {
++		codex_fault_pc = instruction_pointer(regs);
++		writel(codex_fault_pc, (void __iomem *)0xfe06010c);
++	}
+ 
+ 	/*
+ 	 * No handler, we'll have to terminate things with extreme prejudice.
+--- a/arch/arm/mm/init.c
++++ b/arch/arm/mm/init.c
+@@ -1,3 +1,4 @@
++#include <linux/io.h>
+ /*
+  *  linux/arch/arm/mm/init.c
+  *
+@@ -349,6 +350,7 @@
+ 	memblock_reserve(__pa(_sdata), _end - _sdata);
+ #else
+ 	memblock_reserve(__pa(_stext), _end - _stext);
++	writel(0xc0de3160, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ #endif
+ #ifdef CONFIG_BLK_DEV_INITRD
+ 	/* FDT scan will populate initrd_start */
+@@ -379,13 +381,16 @@
+ #endif
+ 
+ 	arm_mm_memblock_reserve();
++	writel(0xc0de3180, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ 
+ 	/* reserve any platform specific memblock areas */
+ 	if (mdesc->reserve)
+ 		mdesc->reserve();
+ 
+ 	early_init_fdt_reserve_self();
++	writel(0xc0de31a0, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ 	early_init_fdt_scan_reserved_mem();
++	writel(0xc0de31b0, (void __iomem *)0xfe06010c); /* CODEX_MEMORY_STAGES */
+ 
+ 	/* reserve memory for DMA contiguous allocations */
+ //	dma_contiguous_reserve(arm_dma_limit);
+--- a/arch/arm/mm/proc-arm1020.S
++++ b/arch/arm/mm/proc-arm1020.S
+@@ -505,7 +505,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm1020_proc_info,#object
+ __arm1020_proc_info:
+--- a/arch/arm/mm/proc-arm1020e.S
++++ b/arch/arm/mm/proc-arm1020e.S
+@@ -463,7 +463,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm1020e_proc_info,#object
+ __arm1020e_proc_info:
+--- a/arch/arm/mm/proc-arm1022.S
++++ b/arch/arm/mm/proc-arm1022.S
+@@ -448,7 +448,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm1022_proc_info,#object
+ __arm1022_proc_info:
+--- a/arch/arm/mm/proc-arm1026.S
++++ b/arch/arm/mm/proc-arm1026.S
+@@ -442,7 +442,7 @@
+ 	string	cpu_arm1026_name, "ARM1026EJ-S"
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm1026_proc_info,#object
+ __arm1026_proc_info:
+--- a/arch/arm/mm/proc-arm720.S
++++ b/arch/arm/mm/proc-arm720.S
+@@ -186,7 +186,7 @@
+  * See <asm/procinfo.h> for a definition of this structure.
+  */
+ 	
+-		.section ".proc.info.init", #alloc
++		.section ".proc.info.init","a"
+ 
+ .macro arm720_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, cpu_flush:req
+ 		.type	__\name\()_proc_info,#object
+--- a/arch/arm/mm/proc-arm740.S
++++ b/arch/arm/mm/proc-arm740.S
+@@ -132,7 +132,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 	.type	__arm740_proc_info,#object
+ __arm740_proc_info:
+ 	.long	0x41807400
+--- a/arch/arm/mm/proc-arm7tdmi.S
++++ b/arch/arm/mm/proc-arm7tdmi.S
+@@ -76,7 +76,7 @@
+ 
+ 		.align
+ 
+-		.section ".proc.info.init", #alloc
++		.section ".proc.info.init","a"
+ 
+ .macro arm7tdmi_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, \
+ 	extra_hwcaps=0
+--- a/arch/arm/mm/proc-arm920.S
++++ b/arch/arm/mm/proc-arm920.S
+@@ -448,7 +448,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm920_proc_info,#object
+ __arm920_proc_info:
+--- a/arch/arm/mm/proc-arm922.S
++++ b/arch/arm/mm/proc-arm922.S
+@@ -426,7 +426,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm922_proc_info,#object
+ __arm922_proc_info:
+--- a/arch/arm/mm/proc-arm925.S
++++ b/arch/arm/mm/proc-arm925.S
+@@ -491,7 +491,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ .macro arm925_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, cache
+ 	.type	__\name\()_proc_info,#object
+--- a/arch/arm/mm/proc-arm926.S
++++ b/arch/arm/mm/proc-arm926.S
+@@ -474,7 +474,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm926_proc_info,#object
+ __arm926_proc_info:
+--- a/arch/arm/mm/proc-arm940.S
++++ b/arch/arm/mm/proc-arm940.S
+@@ -344,7 +344,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__arm940_proc_info,#object
+ __arm940_proc_info:
+--- a/arch/arm/mm/proc-arm946.S
++++ b/arch/arm/mm/proc-arm946.S
+@@ -399,7 +399,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 	.type	__arm946_proc_info,#object
+ __arm946_proc_info:
+ 	.long	0x41009460
+--- a/arch/arm/mm/proc-arm9tdmi.S
++++ b/arch/arm/mm/proc-arm9tdmi.S
+@@ -70,7 +70,7 @@
+ 
+ 		.align
+ 
+-		.section ".proc.info.init", #alloc
++		.section ".proc.info.init","a"
+ 
+ .macro arm9tdmi_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req
+ 		.type	__\name\()_proc_info, #object
+--- a/arch/arm/mm/proc-fa526.S
++++ b/arch/arm/mm/proc-fa526.S
+@@ -190,7 +190,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__fa526_proc_info,#object
+ __fa526_proc_info:
+--- a/arch/arm/mm/proc-feroceon.S
++++ b/arch/arm/mm/proc-feroceon.S
+@@ -584,7 +584,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ .macro feroceon_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, cache:req
+ 	.type	__\name\()_proc_info,#object
+--- a/arch/arm/mm/proc-mohawk.S
++++ b/arch/arm/mm/proc-mohawk.S
+@@ -427,7 +427,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__88sv331x_proc_info,#object
+ __88sv331x_proc_info:
+--- a/arch/arm/mm/proc-sa110.S
++++ b/arch/arm/mm/proc-sa110.S
+@@ -199,7 +199,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	.type	__sa110_proc_info,#object
+ __sa110_proc_info:
+--- a/arch/arm/mm/proc-sa1100.S
++++ b/arch/arm/mm/proc-sa1100.S
+@@ -242,7 +242,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ .macro sa1100_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req
+ 	.type	__\name\()_proc_info,#object
+--- a/arch/arm/mm/proc-v6.S
++++ b/arch/arm/mm/proc-v6.S
+@@ -264,7 +264,7 @@
+ 	string	cpu_elf_name, "v6"
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	/*
+ 	 * Match any ARMv6 processor core.
+--- a/arch/arm/mm/proc-v7.S
++++ b/arch/arm/mm/proc-v7.S
+@@ -539,7 +539,7 @@
+ 	string	cpu_elf_name, "v7"
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	/*
+ 	 * Standard v7 proc info content
+--- a/arch/arm/mm/proc-v7m.S
++++ b/arch/arm/mm/proc-v7m.S
+@@ -73,7 +73,7 @@
+ ENDPROC(cpu_v7m_do_resume)
+ #endif
+ 
+-	.section ".text.init", #alloc, #execinstr
++	.section ".text.init","ax"
+ 
+ /*
+  *	__v7m_setup
+@@ -135,7 +135,7 @@
+ 	string cpu_elf_name "v7m"
+ 	string cpu_v7m_name "ARMv7-M"
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ 	/*
+ 	 * Match any ARMv7-M processor core.
+--- a/arch/arm/mm/proc-xsc3.S
++++ b/arch/arm/mm/proc-xsc3.S
+@@ -499,7 +499,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ .macro xsc3_proc_info name:req, cpu_val:req, cpu_mask:req
+ 	.type	__\name\()_proc_info,#object
+--- a/arch/arm/mm/proc-xscale.S
++++ b/arch/arm/mm/proc-xscale.S
+@@ -612,7 +612,7 @@
+ 
+ 	.align
+ 
+-	.section ".proc.info.init", #alloc
++	.section ".proc.info.init","a"
+ 
+ .macro xscale_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, cache
+ 	.type	__\name\()_proc_info,#object
+--- a/drivers/net/ethernet/realtek/rtk_8168.c
++++ b/drivers/net/ethernet/realtek/rtk_8168.c
+@@ -4125,9 +4125,8 @@
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+ static void rtl8168_netpoll(struct net_device *dev)
+ {
+-	struct rtl8168_private *tp = netdev_priv(dev);
+-
+-	rtl8168_interrupt(tp->pci_dev->irq, dev);
++
++	rtl8168_interrupt(dev->irq, dev); /* Embedded controller: no PCI device. */
+ }
+ #endif
+ 
+--- a/drivers/rtk_kdriver/gal/rtk_gdma.c
++++ b/drivers/rtk_kdriver/gal/rtk_gdma.c
+@@ -3285,6 +3285,18 @@
+ 	/* clear blend_setting_conflict */
+ 	rtd_outl(GDMA_blend_setting_conflict_reg, 0);
+ #endif
++	/*
++	 * The bootloader may leave OSD interrupts active. Registering the IRQ
++	 * before OsdSync exists lets GDMA_irq_handler queue work through NULL.
++	 */
++	psOsdSyncWorkQueue = alloc_ordered_workqueue("OsdSync",
++				WQ_FREEZABLE | WQ_MEM_RECLAIM | WQ_HIGHPRI);
++	if (!psOsdSyncWorkQueue) {
++		DBG_PRINT(KERN_EMERG "gdma: cannot allocate OsdSync workqueue\n");
++		return -ENOMEM;
++	}
++	INIT_WORK(&sOsdSyncWork, osd_sync_hwc);
++
+ 	/* Yvonne todo modify GDMA_IRQ->39 */
+ 	if (request_irq(gic_irq_find_mapping(GDMA_IRQ), GDMA_irq_handler, IRQF_SHARED, "gdma", gdma)) {
+ 		DBG_PRINT(KERN_EMERG"gdma: can't get assigned irq%i\n", GDMA_IRQ);
+@@ -3302,9 +3314,6 @@
+ 	gdma->ctrl.OSD1onTop      = 0;
+ 
+ 
+-	/*  osd sync work queue init */
+-	psOsdSyncWorkQueue = alloc_ordered_workqueue("OsdSync", WQ_FREEZABLE | WQ_MEM_RECLAIM | WQ_HIGHPRI);
+-	INIT_WORK(&sOsdSyncWork, osd_sync_hwc);
+ 
+ 	memset(&sGdmaReceiveWork[0], 0x0, sizeof(sGdmaReceiveWork));
+ 
+@@ -7665,6 +7674,7 @@
+ }
+ /*=============END    OF GPU STD STUFF ===============*/
+ 
++EXPORT_SYMBOL(GDMA_init_module);
+ module_init(GDMA_init_module);
+ module_exit(GDMA_cleanup_module);
+ 
+--- a/drivers/rtk_kdriver/rtd_logger.c
++++ b/drivers/rtk_kdriver/rtd_logger.c
+@@ -2674,6 +2674,9 @@
+ 
+ int thread_logbuf_reader(void* p)
+ {
++    /* CODEX_RAM_ONLY_LOG_ISOLATION: retain printk, skip vendor file writer. */
++    return 0;
++
+     int sleep_flag;
+     static u64 last_start_time = 0;
+ 
+--- a/drivers/rtk_kdriver/rtk_8168.c
++++ b/drivers/rtk_kdriver/rtk_8168.c
+@@ -4963,9 +4963,8 @@
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+ static void rtl8168_netpoll(struct net_device *dev)
+ {
+-	struct rtl8168_private *tp = netdev_priv(dev);
+-
+-	rtl8168_interrupt(tp->pci_dev->irq, dev);
++
++	rtl8168_interrupt(dev->irq, dev); /* Embedded controller: no PCI device. */
+ }
+ #endif
+ 
+--- a/drivers/rtk_kdriver/rtk_watchdog.c
++++ b/drivers/rtk_kdriver/rtk_watchdog.c
+@@ -363,7 +363,7 @@
+ 		}
+ #endif
+ 
+-		if (time_is_before_jiffies(to_a)) {
++		if (0 && time_is_before_jiffies(to_a)) { /* CODEX RAM-only diagnostic: skip DSP heartbeat panic. */
+ 			set_rtdlog_panic_cpu_type(ACPU1);
+ 			DDR_scan_set_error(DDR_SCAN_STATUS_ACPU1);
+ 			my_panic("[A1DSP] WatchDog does not receive signal for %d seconds, value: %08x \n", TO_MSEC/1000, val_dummy_2);
+@@ -375,14 +375,14 @@
+ 			my_panic("[A2DSP] WatchDog does not receive signal for %d seconds, value: %08x \n", TO_MSEC/1000, val_dummy_2);
+ 		}
+ #endif
+-		if (time_is_before_jiffies(to_v)) {
++		if (0 && time_is_before_jiffies(to_v)) { /* CODEX RAM-only diagnostic: skip DSP heartbeat panic. */
+ 			set_rtdlog_panic_cpu_type(VCPU1);
+ 			DDR_scan_set_error(DDR_SCAN_STATUS_VCPU1);
+ 			rtk_wdog_dump_vcpu_status();
+ 			my_panic("[V1DSP] WatchDog does not receive signal for %d seconds, value: %08x \n", TO_MSEC/1000, val_dummy_2);
+ 		}
+ #ifndef CONFIG_OPTEE
+-		if (time_is_before_jiffies(to_k)) {
++		if (0 && time_is_before_jiffies(to_k)) { /* CODEX RAM-only diagnostic: skip DSP heartbeat panic. */
+ 			/*ravi_li dump crt info when KCPU not kick watchdog*/
+ 			set_rtdlog_panic_cpu_type(KCPU);
+ 			DDR_scan_set_error(DDR_SCAN_STATUS_KCPU);
+--- a/init/main.c
++++ b/init/main.c
+@@ -1,3 +1,5 @@
++#include <linux/io.h>
++#include <linux/reboot.h>
+ /*
+  *  linux/init/main.c
+  *
+@@ -416,6 +418,12 @@
+ #if defined(CONFIG_REALTEK_WATCHDOG) || defined(CONFIG_RTK_KDRV_WATCHDOG)
+ int hw_watchdog(void *p);
+ #endif
++/* CODEX_RETAINED_CRUMB: only after setup_arch has mapped RBUS. */
++static inline void codex_crumb(unsigned long value)
++{
++    writel(value, (void __iomem *)0xfe06010c);
++}
++
+ static noinline void __init_refok rest_init(void)
+ {
+ 	int pid;
+@@ -427,6 +435,7 @@
+ 	 * the init task will end up wanting to create kthreads, which, if
+ 	 * we schedule it before we create kthreadd, will OOPS.
+ 	 */
++	codex_crumb(0xc0de2300);
+ 	kernel_thread(kernel_init, NULL, CLONE_FS);
+ 
+ #ifndef CONFIG_REALTEK_FPGA
+@@ -543,6 +552,7 @@
+ {
+ 	char *command_line;
+ 	char *after_dashes;
++	codex_crumb(0xc0de2170); /* CODEX_POST_MMU */
+ 
+ 	/*
+ 	 * Need to run as early as possible, to initialize the
+@@ -571,6 +581,7 @@
+ 	page_address_init();
+ 	pr_notice("%s", linux_banner);
+ 	setup_arch(&command_line);
++	codex_crumb(0xc0de2200);
+ 	mm_init_cpumask(&init_mm);
+ 
+         hw_monitor_early_init();/*init rtk hw_monitor*/
+@@ -844,6 +855,7 @@
+ 	if (initcall_blacklisted(fn))
+ 		return -EPERM;
+ 
++	codex_crumb((unsigned long)fn);
+ 	if (initcall_debug)
+ 		ret = do_one_initcall_debug(fn);
+ 	else
+@@ -963,10 +975,15 @@
+ 
+ static int run_init_process(const char *init_filename)
+ {
+-	argv_init[0] = init_filename;
+-	return do_execve(getname_kernel(init_filename),
+-		(const char __user *const __user *)argv_init,
+-		(const char __user *const __user *)envp_init);
++    int codex_exec_result;
++    codex_crumb(0xc0de2500);
++    argv_init[0] = init_filename;
++    codex_exec_result = do_execve(getname_kernel(init_filename),
++        (const char __user *const __user *)argv_init,
++        (const char __user *const __user *)envp_init);
++    /* CODEX_EXEC_RESULT: 2504 means ELF setup succeeded, 60xx encodes errno. */
++    codex_crumb(codex_exec_result ? 0xc0de6000 | ((-codex_exec_result & 0xff) << 2) : 0xc0de2504);
++    return codex_exec_result;
+ }
+ 
+ static int try_to_run_init_process(const char *init_filename)
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1,3 +1,4 @@
++#include <linux/io.h>
+ /*
+  *  linux/kernel/fork.c
+  *
+@@ -1231,6 +1232,8 @@
+ 
+ SYSCALL_DEFINE1(set_tid_address, int __user *, tidptr)
+ {
++	if (task_pid_nr(current) == 1)
++		writel(0xc0de2608, (void __iomem *)0xfe06010c); /* CODEX_USER_TID */
+ 	current->clear_child_tid = tidptr;
+ 
+ 	return task_pid_vnr(current);
+--- a/kernel/panic.c
++++ b/kernel/panic.c
+@@ -1,3 +1,7 @@
++#include <linux/io.h>
++/* CODEX_FATAL_FAULT: accessed only after permanent RBUS mapping exists. */
++int codex_debug_io_ready;
++unsigned long codex_fault_pc;
+ /*
+  *  linux/kernel/panic.c
+  *
+@@ -86,6 +90,10 @@
+ 	va_list args;
+ 	long i, i_next = 0;
+ 	int state = 0;
++	if (codex_debug_io_ready) {
++		if (!codex_fault_pc) codex_fault_pc = (unsigned long)__builtin_return_address(0);
++		writel(codex_fault_pc, (void __iomem *)0xfe06010c);
++	}
+ 
+ #ifdef CONFIG_REALTEK_UART2RBUS_CONTROL
+ 	enable_uart2rbus(1);
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -1,3 +1,7 @@
++#include <linux/io.h>
++/* CODEX_RESET_SOURCE */
++extern int codex_debug_io_ready;
++extern unsigned long codex_fault_pc;
+ /*
+  *  linux/kernel/reboot.c
+  *
+@@ -60,6 +64,8 @@
+  */
+ void emergency_restart(void)
+ {
++	if (codex_debug_io_ready && !codex_fault_pc && readl((void __iomem *)0xfe06010c) != 0xc0de9000)
++		writel((unsigned long)__builtin_return_address(0), (void __iomem *)0xfe06010c);
+ 	kmsg_dump(KMSG_DUMP_EMERG);
+ 	machine_emergency_restart();
+ }
+--- a/mm/rtkblueprint.c
++++ b/mm/rtkblueprint.c
+@@ -1,3 +1,4 @@
++#include <linux/io.h>
+ /*
+  *  linux/mm/rtkblueprint.c
+  *
+@@ -43,6 +44,7 @@
+ 	struct mem_region *region = &ban_info.region[ban_info.nr_regions];
+ 
+ 	if (ban_info.nr_regions >= NR_REGIONS) {
++		writel(0xc0de5100 | ((ban_info.nr_regions & 0x3f) << 2), (void __iomem *)0xfe06010c); /* CODEX_BAN_ERROR */
+ 		pr_err("rtkbp: NR_REGIONS too low, ignoring memory at 0x%08lx\n", addr);
+ 		return -EINVAL;
+ 	}
+@@ -52,6 +54,7 @@
+ 		    (size != ALIGN(size, PAGE_SIZE << pageblock_order))) {
+ 			pr_err("#########################################################\n");
+ 			pr_err("rtkbp: %s addr: %08lx size: %08lx\n", __FUNCTION__, addr, size);
++		writel(0xc0de5200 | ((ban_info.nr_regions & 0x3f) << 2), (void __iomem *)0xfe06010c); /* CODEX_BAN_ERROR */
+ 			pr_err("rtkbp: addr & size should be aligned to pageblock size...\n");
+ 			pr_err("#########################################################\n");
+ 			return -EINVAL;
+@@ -59,6 +62,7 @@
+ 
+ 		if (memblock_reserve(addr, size) < 0) {
+ 			pr_err("rtkbp: can not ban region %08lx - %08lx\n", addr, addr + size);
++		writel(0xc0de5300 | ((ban_info.nr_regions & 0x3f) << 2), (void __iomem *)0xfe06010c); /* CODEX_BAN_ERROR */
+ 			BUG();
+ 		}
+ 	}
+@@ -67,8 +71,10 @@
+ 	region->size = size;
+ 	region->type = type;
+ 
+-	if (region->size == 0)
++	if (region->size == 0) {
++		writel(0xc0de5400 | ((ban_info.nr_regions & 0x3f) << 2), (void __iomem *)0xfe06010c); /* CODEX_BAN_ERROR */
+ 		return -EINVAL;
++	}
+ 
+ 	ban_info.nr_regions++;
+ 
+--- a/scripts/Kbuild.include
++++ b/scripts/Kbuild.include
+@@ -240,7 +240,9 @@
+ # (needed for make)
+ # Replace >'< with >'\''< to be able to enclose the whole string in '...'
+ # (needed for the shell)
+-make-cmd = $(call escsq,$(subst \#,\\\#,$(subst $$,$$$$,$(cmd_$(1)))))
++# GNU make: also quote bare hash signs in saved compiler commands.
++codex_pound := \#
++make-cmd = $(call escsq,$(subst $(codex_pound),\$(codex_pound),$(subst $$,$$$$,$(cmd_$(1)))))
+ 
+ # Find any prerequisites that is newer than target or that does not exist.
+ # PHONY targets skipped in both cases.
+--- a/scripts/dtc/dtc-lexer.l
++++ b/scripts/dtc/dtc-lexer.l
+@@ -38,7 +38,7 @@
+ #include "srcpos.h"
+ #include "dtc-parser.tab.h"
+ 
+-YYLTYPE yylloc;
++extern YYLTYPE yylloc;
+ extern bool treesource_error;
+ 
+ /* CAUTION: this will stop working if we ever use yyless() or yyunput() */
+--- a/scripts/dtc/dtc-lexer.lex.c_shipped
++++ b/scripts/dtc/dtc-lexer.lex.c_shipped
+@@ -637,7 +637,7 @@
+ #include "srcpos.h"
+ #include "dtc-parser.tab.h"
+ 
+-YYLTYPE yylloc;
++extern YYLTYPE yylloc;
+ extern bool treesource_error;
+ 
+ /* CAUTION: this will stop working if we ever use yyless() or yyunput() */

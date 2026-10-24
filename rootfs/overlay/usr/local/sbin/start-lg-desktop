@@ -1,0 +1,28 @@
+#!/bin/sh
+set -u
+mkdir -p /run/lg-desktop /run/fakesys/fb0/device /run/fakesys/platform /tmp/.X11-unix
+chmod 1777 /tmp /tmp/.X11-unix
+ln -sfn /run/fakesys/platform /run/fakesys/fb0/device/subsystem
+if ! grep -q '/sys/devices/virtual/graphics/fb0 ' /proc/mounts; then
+    mount --bind /run/fakesys/fb0 /sys/devices/virtual/graphics/fb0
+fi
+pkill Xorg 2>/dev/null || true
+rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+LD_PRELOAD=/usr/local/lib/libfixfbioctl.so \
+    Xorg :0 vt1 -config /etc/X11/xorg-lg-tv.conf -nolisten tcp -noreset \
+    -logfile /run/lg-desktop/Xorg.0.log > /run/lg-desktop/xorg.stdout 2>&1 &
+count=0
+while [ ! -S /tmp/.X11-unix/X0 ] && [ "$count" -lt 20 ]; do
+    sleep 1
+    count=$((count + 1))
+done
+if [ ! -S /tmp/.X11-unix/X0 ]; then
+    echo "Xorg did not create its socket"
+    exit 1
+fi
+DISPLAY=:0 openbox > /run/lg-desktop/openbox.log 2>&1 &
+sleep 1
+DISPLAY=:0 xterm -title "Alpine Linux on LG TV" -geometry 72x20+18+18 \
+    -fa "DejaVu Sans Mono" -fs 13 -bg '#07131f' -fg '#65f4b0' \
+    -e /bin/sh -lc 'clear; echo "ALPINE LINUX ON LG TV"; echo; uname -a; echo; echo "GDMA and venusfb are active."; echo "Xorg/Openbox desktop is running."; echo; exec /bin/sh' \
+    > /run/lg-desktop/xterm.log 2>&1 &

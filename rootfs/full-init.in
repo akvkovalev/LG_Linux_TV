@@ -1,0 +1,36 @@
+#!/bin/sh
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root TERM=vt100
+umask 022
+
+mkdir -p /dev/pts /run/sshd /run/log
+mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts
+hostname alpine-tv
+
+ip link set lo up
+ip link set eth0 up > /run/log/network.log 2>&1
+ip addr replace @TV_HOST@/@TV_NETMASK_CIDR@ dev eth0 >> /run/log/network.log 2>&1
+ip route replace default via @TV_GATEWAY@ dev eth0 >> /run/log/network.log 2>&1 || true
+
+/usr/local/sbin/start-native-display > /run/log/display.log 2>&1
+/usr/local/sbin/start-lg-desktop > /run/log/desktop.log 2>&1
+
+[ -f /etc/ssh/ssh_host_ed25519_key ] ||
+    ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key \
+        > /run/log/ssh-keygen.log 2>&1
+(
+    while :; do
+        /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config.lg-tv
+        sleep 2
+    done
+) > /run/log/sshd.log 2>&1 &
+
+# PID 1 stays alive. Rebooting or removing power returns to stock webOS.
+while :; do
+    if [ -c /dev/ttyS0 ]; then
+        setsid /bin/sh -l < /dev/ttyS0 > /dev/ttyS0 2>&1
+    else
+        sleep 30
+    fi
+    sleep 2
+done

@@ -1,0 +1,39 @@
+#!/bin/sh
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root TERM=vt100
+umask 022
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /run /run/log /newroot
+mount -t devpts devpts /dev/pts
+mount -t tmpfs -o mode=0755,size=256m tmpfs /run
+hostname alpine-tv-loader
+
+ip link set lo up
+ip link set eth0 up > /run/log/network.log 2>&1
+ip addr replace @TV_HOST@/@TV_NETMASK_CIDR@ dev eth0 >> /run/log/network.log 2>&1
+ip route replace default via @TV_GATEWAY@ dev eth0 >> /run/log/network.log 2>&1 || true
+
+notify() {
+    { echo "$1"; uname -r; cat /proc/uptime; } |
+        /bin/busybox nc -u -w 1 @NETCONSOLE_HOST@ @NETCONSOLE_PORT@ || true
+}
+
+notify 'LGTV LOADER NETWORK READY'
+while ! /bin/busybox wget -T 10 -O /run/alpine-full.tar.gz '@ROOTFS_URL@' \
+        > /run/log/fetch.log 2>&1; do
+    notify 'LGTV FULL ROOTFS FETCH RETRY'
+    sleep 3
+done
+
+/bin/busybox tar -xzf /run/alpine-full.tar.gz -C /newroot > /run/log/extract.log 2>&1
+rm -f /run/alpine-full.tar.gz
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run
+mount -o bind /proc /newroot/proc
+mount -o bind /sys /newroot/sys
+mount -o bind /dev /newroot/dev
+mount -o bind /run /newroot/run
+notify 'LGTV FULL ALPINE EXTRACTED'
+exec /bin/busybox chroot /newroot /init-alpine

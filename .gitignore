@@ -1,0 +1,17 @@
+/build/
+/dist/
+/.env
+*.img
+*.dtb
+*.cpio
+*.cpio.gz
+*.ko
+*.tar
+*.tar.gz
+*.log
+*.jsonl
+*.pyc
+__pycache__/
+known_hosts*
+id_*
+!checksums/reference.sha256
