@@ -31,8 +31,10 @@ python3 tools/collect_netconsole.py --output boot.jsonl
 ```
 
 Перед переходом скрипт сохраняет и временно отключает SB2/ARM/DCMT мониторы,
-которые иначе могут остановить новый kernel. Если `kexec` возвращает ошибку,
-monitor state восстанавливается.
+затем переводит CPU1–CPU3 в offline. Оба действия нужны до `kexec -e`: параметры
+`nr_cpus=1 maxcpus=1` применяются только к новому ядру и не останавливают ядра
+stock webOS. Если `kexec` возвращает ошибку, CPU и monitor state
+восстанавливаются.
 
 Ожидаемая последовательность netconsole:
 

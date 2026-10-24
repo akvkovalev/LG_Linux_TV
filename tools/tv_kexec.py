@@ -68,6 +68,33 @@ def command(manifest):
             '--mem-min=0x100000', '--mem-max=0x15ffffff']
 
 
+def offline_secondary_cpus():
+    changed = []
+    try:
+        for cpu in (3, 2, 1):
+            path = '/sys/devices/system/cpu/cpu%d/online' % cpu
+            if os.path.exists(path) and read(path) == '1':
+                with open(path, 'w') as handle:
+                    handle.write('0\n')
+                if read(path) != '0':
+                    raise RuntimeError('Failed to offline CPU%d' % cpu)
+                changed.append(cpu)
+        online = read('/sys/devices/system/cpu/online')
+        if online != '0':
+            raise RuntimeError('Unexpected online CPU set: ' + online)
+        return changed
+    except Exception:
+        restore_secondary_cpus(changed)
+        raise
+
+
+def restore_secondary_cpus(changed):
+    for cpu in reversed(changed):
+        path = '/sys/devices/system/cpu/cpu%d/online' % cpu
+        with open(path, 'w') as handle:
+            handle.write('1\n')
+
+
 def check(manifest):
     if state() != 0:
         raise ValueError('A kernel is already staged')
@@ -94,6 +121,7 @@ def execute(manifest):
         if not json.load(handle).get('success'):
             raise ValueError('Run --check successfully before execution')
     saved = monitors.snapshot()
+    offlined_cpus = []
     with open(BASE + '/monitors-before-execution.json', 'w') as handle:
         json.dump(saved, handle, indent=2)
     try:
@@ -101,6 +129,7 @@ def execute(manifest):
         if state() != 1:
             raise RuntimeError('Kernel did not stage')
         monitors.disable(saved)
+        offlined_cpus = offline_secondary_cpus()
         print('Executing RAM-only Linux boot'); sys.stdout.flush()
         subprocess.check_call([BASE + '/kexec-arm', '-e'])
         raise RuntimeError('kexec unexpectedly returned')
@@ -108,6 +137,8 @@ def execute(manifest):
         for sig in (signal.SIGHUP, signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, signal.SIG_IGN)
         subprocess.call([BASE + '/kexec-arm', '-u'])
+        if offlined_cpus:
+            restore_secondary_cpus(offlined_cpus)
         monitors.restore(saved)
 
 
